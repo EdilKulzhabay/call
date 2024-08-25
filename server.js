@@ -12,7 +12,7 @@ const PORT = 3001;
 
 app.use(
     cors({
-        //origin: "http://192.168.8.33:3000",
+        //origin: "https://voca.kz",
         origin: "http://localhost:3000",
         credentials: true,
     })
@@ -20,6 +20,7 @@ app.use(
 
 function getClientRooms() {
     const { rooms } = io.sockets.adapter;
+
     return Array.from(rooms.keys()).filter(
         (roomID) => validate(roomID) && version(roomID) === 4
     );
@@ -58,49 +59,49 @@ io.on("connection", (socket) => {
 
         socket.join(roomID);
         shareRoomsInfo();
+    });
 
-        function leaveRoom() {
-            const { rooms } = socket;
+    function leaveRoom() {
+        const { rooms } = socket;
 
-            Array.from(rooms)
-                // LEAVE ONLY CLIENT CREATED ROOM
-                //   .filter(roomID => validate(roomID) && version(roomID) === 4)
-                .forEach((roomID) => {
-                    const clients = Array.from(
-                        io.sockets.adapter.rooms.get(roomID) || []
-                    );
+        Array.from(rooms)
+            // LEAVE ONLY CLIENT CREATED ROOM
+            .filter((roomID) => validate(roomID) && version(roomID) === 4)
+            .forEach((roomID) => {
+                const clients = Array.from(
+                    io.sockets.adapter.rooms.get(roomID) || []
+                );
 
-                    clients.forEach((clientID) => {
-                        io.to(clientID).emit(ACTIONS.REMOVE_PEER, {
-                            peerID: socket.id,
-                        });
-
-                        socket.emit(ACTIONS.REMOVE_PEER, {
-                            peerID: clientID,
-                        });
+                clients.forEach((clientID) => {
+                    io.to(clientID).emit(ACTIONS.REMOVE_PEER, {
+                        peerID: socket.id,
                     });
 
-                    socket.leave(roomID);
+                    socket.emit(ACTIONS.REMOVE_PEER, {
+                        peerID: clientID,
+                    });
                 });
 
-            shareRoomsInfo();
-        }
-
-        socket.on(ACTIONS.LEAVE, leaveRoom);
-        socket.on("disconnecting", leaveRoom);
-
-        socket.on(ACTIONS.RELAY_SDP, ({ peerID, sessionDescription }) => {
-            io.to(peerID).emit(ACTIONS.SESSION_DESCRIPTION, {
-                peerID: socket.id,
-                sessionDescription,
+                socket.leave(roomID);
             });
+
+        shareRoomsInfo();
+    }
+
+    socket.on(ACTIONS.LEAVE, leaveRoom);
+    socket.on("disconnecting", leaveRoom);
+
+    socket.on(ACTIONS.RELAY_SDP, ({ peerID, sessionDescription }) => {
+        io.to(peerID).emit(ACTIONS.SESSION_DESCRIPTION, {
+            peerID: socket.id,
+            sessionDescription,
         });
+    });
 
-        socket.on(ACTIONS.RELAY_ICE, ({ peerID, iceCandidate }) => {
-            io.to(peerID).emit(ACTIONS.ICE_CANDIDATE, {
-                peerID: socket.id,
-                iceCandidate,
-            });
+    socket.on(ACTIONS.RELAY_ICE, ({ peerID, iceCandidate }) => {
+        io.to(peerID).emit(ACTIONS.ICE_CANDIDATE, {
+            peerID: socket.id,
+            iceCandidate,
         });
     });
 });
